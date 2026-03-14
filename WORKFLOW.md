@@ -17,7 +17,7 @@ polling:
   interval_ms: 30000
 
 workspace:
-  root: ./
+  root: ./workspaces/
 
 hooks:
   after_create: |
@@ -74,9 +74,11 @@ This is retry attempt {{ attempt }}. Review your previous work and continue from
 {% endif %}
 
 ## Instructions
-1. Read and understand the issue requirements
-2. Implement the necessary changes
-3. Write tests for your changes
-4. Ensure all tests pass
-5. Create a pull request with a clear description
-6. Move the issue to "Human Review" when complete
+1. Create a feature branch named `{{ issue.identifier | downcase }}` before making any changes
+2. Read and understand the issue requirements
+3. Implement the necessary changes
+4. Commit your work frequently with clear commit messages
+5. Write tests for your changes
+6. Ensure all tests pass
+7. Push your branch and create a pull request with a clear description using `gh pr create`
+8. Move the issue to "In Review" when complete

@@ -484,9 +484,9 @@ func normalizeIssueNode(n issueNode) model.Issue {
 	}
 	issue.Labels = labels
 
-	// BlockedBy: inverse relations of type "blocks"
+	// BlockedBy: relations where this issue is blocked by the related issue
 	for _, rel := range n.Relations.Nodes {
-		if rel.Type == "blocks" {
+		if rel.Type == "blocked_by" {
 			id := rel.RelatedIssue.ID
 			ident := rel.RelatedIssue.Identifier
 			state := rel.RelatedIssue.State.Name

@@ -34,7 +34,7 @@ type Orchestrator struct {
 	running       map[string]*model.RunningEntry // issue_id -> entry
 	claimed       map[string]bool
 	retryAttempts map[string]*model.RetryEntry
-	completed     map[string]bool
+	completed     map[string]string // issue_id -> state when completed
 	codexTotals   model.CodexTotals
 	rateLimits    *model.RateLimitInfo
 
@@ -61,7 +61,7 @@ func New(
 		running:       make(map[string]*model.RunningEntry),
 		claimed:       make(map[string]bool),
 		retryAttempts: make(map[string]*model.RetryEntry),
-		completed:     make(map[string]bool),
+		completed:     make(map[string]string),
 	}
 }
 
@@ -176,6 +176,21 @@ func (o *Orchestrator) tick(ctx context.Context) {
 		return
 	}
 
+	o.mu.Lock()
+	runningCount := len(o.running)
+	claimedCount := len(o.claimed)
+	retryCount := len(o.retryAttempts)
+	completedCount := len(o.completed)
+	o.mu.Unlock()
+
+	o.logger.Info("tick: fetched candidates",
+		"candidates", len(issues),
+		"running", runningCount,
+		"claimed", claimedCount,
+		"retrying", retryCount,
+		"completed", completedCount,
+	)
+
 	// Sort for dispatch
 	sortForDispatch(issues)
 
@@ -186,64 +201,90 @@ func (o *Orchestrator) tick(ctx context.Context) {
 		o.mu.Unlock()
 
 		if slots <= 0 {
+			o.logger.Info("tick: no available slots, stopping dispatch")
 			break
 		}
 
-		if o.shouldDispatch(issue) {
+		if ok, reason := o.shouldDispatch(issue); ok {
+			o.logger.Info("tick: dispatching",
+				"issue_identifier", issue.Identifier,
+				"issue_state", issue.State,
+			)
 			o.dispatchIssue(ctx, issue, nil)
+		} else {
+			o.logger.Info("tick: skipping issue",
+				"issue_identifier", issue.Identifier,
+				"issue_state", issue.State,
+				"reason", reason,
+				"blockers", len(issue.BlockedBy),
+			)
 		}
 	}
 
 	o.notifyObservers()
 }
 
-func (o *Orchestrator) shouldDispatch(issue model.Issue) bool {
+func (o *Orchestrator) shouldDispatch(issue model.Issue) (bool, string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
 	// Required fields
 	if issue.ID == "" || issue.Identifier == "" || issue.Title == "" || issue.State == "" {
-		return false
+		return false, "missing_required_fields"
 	}
 
 	// Must be in active states
 	if !o.cfg.IsActiveState(issue.State) {
-		return false
+		return false, fmt.Sprintf("state_not_active: %s", issue.State)
 	}
 
 	// Must not be in terminal states
 	if o.cfg.IsTerminalState(issue.State) {
-		return false
+		return false, fmt.Sprintf("state_is_terminal: %s", issue.State)
 	}
 
 	// Not already running or claimed
 	if _, ok := o.running[issue.ID]; ok {
-		return false
+		return false, "already_running"
 	}
 	if o.claimed[issue.ID] {
-		return false
+		return false, "already_claimed"
+	}
+
+	// Already completed in this state — only re-dispatch if state changed
+	// (e.g. someone moved it back to Todo for another attempt)
+	if completedState, ok := o.completed[issue.ID]; ok {
+		if strings.EqualFold(completedState, issue.State) {
+			return false, fmt.Sprintf("already_completed_in_state: %s", completedState)
+		}
+		// State changed since completion — allow re-dispatch
+		delete(o.completed, issue.ID)
 	}
 
 	// Global concurrency
 	if o.availableSlots() <= 0 {
-		return false
+		return false, "no_global_slots"
 	}
 
 	// Per-state concurrency
 	if !o.perStateSlotAvailable(issue.State) {
-		return false
+		return false, "no_per_state_slots"
 	}
 
 	// Blocker rule for Todo state
 	if strings.EqualFold(issue.State, "todo") {
 		for _, b := range issue.BlockedBy {
 			if b.State != nil && !o.cfg.IsTerminalState(*b.State) {
-				return false
+				blockerIdent := ""
+				if b.Identifier != nil {
+					blockerIdent = *b.Identifier
+				}
+				return false, fmt.Sprintf("blocked_by: %s (state: %s)", blockerIdent, *b.State)
 			}
 		}
 	}
 
-	return true
+	return true, ""
 }
 
 func (o *Orchestrator) availableSlots() int {
@@ -491,11 +532,28 @@ func (o *Orchestrator) buildTurnPrompt(issue model.Issue, attempt *int, turnNum,
 	}
 
 	// Continuation turn - send guidance, not the full original prompt
+	turnsRemaining := maxTurns - turnNum
+
+	var urgency string
+	switch {
+	case turnsRemaining <= 1:
+		urgency = "URGENT: This is your LAST turn. You MUST commit all changes, push your branch, and create a pull request NOW. Do not start any new work."
+	case turnsRemaining <= 3:
+		urgency = fmt.Sprintf("You have %d turns remaining. Start wrapping up: commit your changes, push your branch, and create a pull request. Do not start major new work.", turnsRemaining)
+	default:
+		urgency = ""
+	}
+
 	guidance := fmt.Sprintf(
 		"Continue working on %s: %s. This is turn %d of %d. "+
 			"The issue is still in state '%s'. Please continue where you left off.",
 		issue.Identifier, issue.Title, turnNum, maxTurns, issue.State,
 	)
+
+	if urgency != "" {
+		guidance = urgency + "\n\n" + guidance
+	}
+
 	return guidance, nil
 }
 
@@ -564,9 +622,10 @@ func (o *Orchestrator) onWorkerExit(issueID string, entry *model.RunningEntry, e
 	o.codexTotals.SecondsRunning += elapsed
 
 	if err == nil {
-		// Normal exit - schedule continuation retry
-		o.completed[issueID] = true
-		o.scheduleRetry(issueID, entry.Identifier, 1, "continuation", 1000)
+		// Normal exit - mark completed with the state it finished in.
+		// Won't be re-dispatched until the issue state changes (e.g. moved back to Todo).
+		o.completed[issueID] = entry.Issue.State
+		delete(o.claimed, issueID)
 
 		o.logger.Info("worker completed normally",
 			"issue_id", issueID,
