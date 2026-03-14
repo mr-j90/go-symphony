@@ -20,10 +20,10 @@ const (
 
 // Client is the Linear GraphQL API client.
 type Client struct {
-	endpoint   string
-	apiKey     string
+	endpoint    string
+	apiKey      string
 	projectSlug string
-	httpClient *http.Client
+	httpClient  *http.Client
 }
 
 // NewClient creates a new Linear client.

@@ -22,13 +22,13 @@ import (
 type Orchestrator struct {
 	mu sync.Mutex
 
-	cfg           *config.Config
-	wfDef         *model.WorkflowDefinition
-	linear        *linear.Client
-	ws            *workspace.Manager
-	runner        *agent.Runner
-	claudeRunner  *agent.ClaudeRunner
-	logger        *slog.Logger
+	cfg          *config.Config
+	wfDef        *model.WorkflowDefinition
+	linear       *linear.Client
+	ws           *workspace.Manager
+	runner       *agent.Runner
+	claudeRunner *agent.ClaudeRunner
+	logger       *slog.Logger
 
 	// Runtime state (single authority)
 	running       map[string]*model.RunningEntry // issue_id -> entry
@@ -846,24 +846,24 @@ func (o *Orchestrator) Snapshot() StateSnapshot {
 
 // StateSnapshot is the serializable state for the API.
 type StateSnapshot struct {
-	GeneratedAt time.Time          `json:"generated_at"`
-	Running     []RunningSnapshot  `json:"running"`
-	Retrying    []RetrySnapshot    `json:"retrying"`
-	CodexTotals model.CodexTotals  `json:"codex_totals"`
+	GeneratedAt time.Time            `json:"generated_at"`
+	Running     []RunningSnapshot    `json:"running"`
+	Retrying    []RetrySnapshot      `json:"retrying"`
+	CodexTotals model.CodexTotals    `json:"codex_totals"`
 	RateLimits  *model.RateLimitInfo `json:"rate_limits"`
 }
 
 type RunningSnapshot struct {
-	IssueID         string          `json:"issue_id"`
-	IssueIdentifier string          `json:"issue_identifier"`
-	State           string          `json:"state"`
-	SessionID       string          `json:"session_id"`
-	TurnCount       int             `json:"turn_count"`
-	LastEvent       string          `json:"last_event"`
-	LastMessage     string          `json:"last_message"`
-	StartedAt       time.Time       `json:"started_at"`
-	LastEventAt     *time.Time      `json:"last_event_at"`
-	Tokens          TokenSnapshot   `json:"tokens"`
+	IssueID         string        `json:"issue_id"`
+	IssueIdentifier string        `json:"issue_identifier"`
+	State           string        `json:"state"`
+	SessionID       string        `json:"session_id"`
+	TurnCount       int           `json:"turn_count"`
+	LastEvent       string        `json:"last_event"`
+	LastMessage     string        `json:"last_message"`
+	StartedAt       time.Time     `json:"started_at"`
+	LastEventAt     *time.Time    `json:"last_event_at"`
+	Tokens          TokenSnapshot `json:"tokens"`
 }
 
 type TokenSnapshot struct {

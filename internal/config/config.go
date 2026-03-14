@@ -15,11 +15,11 @@ type Config struct {
 	mu sync.RWMutex
 
 	// Tracker
-	TrackerKind         string
-	TrackerEndpoint     string
-	TrackerAPIKey       string
-	TrackerProjectSlug  string
-	TrackerActiveStates []string
+	TrackerKind           string
+	TrackerEndpoint       string
+	TrackerAPIKey         string
+	TrackerProjectSlug    string
+	TrackerActiveStates   []string
 	TrackerTerminalStates []string
 
 	// Polling
@@ -36,10 +36,10 @@ type Config struct {
 	HookTimeoutMS    int
 
 	// Agent
-	MaxConcurrentAgents       int
-	MaxRetryBackoffMS         int
-	MaxTurns                  int
-	MaxConcurrentByState      map[string]int // normalized lowercase keys
+	MaxConcurrentAgents  int
+	MaxRetryBackoffMS    int
+	MaxTurns             int
+	MaxConcurrentByState map[string]int // normalized lowercase keys
 
 	// Dispatch state transition: if set, move issue to this state on dispatch
 	DispatchTransitionState string
@@ -48,25 +48,25 @@ type Config struct {
 	AgentType string
 
 	// Codex
-	CodexCommand          string
-	CodexApprovalPolicy   string
-	CodexThreadSandbox    string
+	CodexCommand           string
+	CodexApprovalPolicy    string
+	CodexThreadSandbox     string
 	CodexTurnSandboxPolicy string
-	CodexTurnTimeoutMS    int
-	CodexReadTimeoutMS    int
-	CodexStallTimeoutMS   int
+	CodexTurnTimeoutMS     int
+	CodexReadTimeoutMS     int
+	CodexStallTimeoutMS    int
 
 	// Claude Code
-	ClaudeCommand                  string
-	ClaudeModel                    string
-	ClaudeMaxTurns                 int
-	ClaudeAllowedTools             []string
-	ClaudeDisallowedTools          []string
-	ClaudePermissionMode           string
+	ClaudeCommand                    string
+	ClaudeModel                      string
+	ClaudeMaxTurns                   int
+	ClaudeAllowedTools               []string
+	ClaudeDisallowedTools            []string
+	ClaudePermissionMode             string
 	ClaudeDangerouslySkipPermissions bool
-	ClaudeAppendSystemPrompt       string
-	ClaudeTurnTimeoutMS            int
-	ClaudeMaxBudgetUSD             float64
+	ClaudeAppendSystemPrompt         string
+	ClaudeTurnTimeoutMS              int
+	ClaudeMaxBudgetUSD               float64
 
 	// Server (extension)
 	ServerPort *int
@@ -95,12 +95,12 @@ func DefaultConfig() *Config {
 
 		AgentType: "codex",
 
-		CodexCommand:       "codex app-server",
-		CodexTurnTimeoutMS: 3600000,
-		CodexReadTimeoutMS: 5000,
+		CodexCommand:        "codex app-server",
+		CodexTurnTimeoutMS:  3600000,
+		CodexReadTimeoutMS:  5000,
 		CodexStallTimeoutMS: 300000,
 
-		ClaudeCommand:      "claude",
+		ClaudeCommand:       "claude",
 		ClaudeTurnTimeoutMS: 3600000,
 	}
 }

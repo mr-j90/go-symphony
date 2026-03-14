@@ -40,9 +40,9 @@ func TestDefaultConfig(t *testing.T) {
 func TestLoadFromMap_Full(t *testing.T) {
 	fm := map[string]any{
 		"tracker": map[string]any{
-			"kind":         "linear",
-			"api_key":      "test-key",
-			"project_slug": "my-proj",
+			"kind":          "linear",
+			"api_key":       "test-key",
+			"project_slug":  "my-proj",
 			"active_states": []any{"Todo", "In Progress", "Review"},
 		},
 		"polling": map[string]any{
@@ -57,9 +57,9 @@ func TestLoadFromMap_Full(t *testing.T) {
 			"timeout_ms":   30000,
 		},
 		"agent": map[string]any{
-			"max_concurrent_agents":    5,
-			"max_retry_backoff_ms":     60000,
-			"max_turns":                15,
+			"max_concurrent_agents": 5,
+			"max_retry_backoff_ms":  60000,
+			"max_turns":             15,
 			"max_concurrent_agents_by_state": map[string]any{
 				"Todo":        2,
 				"In Progress": 3,
@@ -276,15 +276,15 @@ func TestLoadFromMap_ClaudeCode(t *testing.T) {
 			"type": "claude_code",
 		},
 		"claude_code": map[string]any{
-			"command":         "my-claude",
-			"model":           "opus",
-			"max_turns":       15,
-			"permission_mode": "auto",
-			"allowed_tools":   []any{"Bash", "Read", "Edit"},
-			"turn_timeout_ms": 1800000,
-			"max_budget_usd":  5.0,
+			"command":                      "my-claude",
+			"model":                        "opus",
+			"max_turns":                    15,
+			"permission_mode":              "auto",
+			"allowed_tools":                []any{"Bash", "Read", "Edit"},
+			"turn_timeout_ms":              1800000,
+			"max_budget_usd":               5.0,
 			"dangerously_skip_permissions": true,
-			"append_system_prompt": "Be careful.",
+			"append_system_prompt":         "Be careful.",
 		},
 	}
 

@@ -73,7 +73,7 @@ type LiveSession struct {
 	TurnID                 string
 	CodexAppServerPID      string
 	LastCodexEvent         string
-	LastCodexTimestamp      *time.Time
+	LastCodexTimestamp     *time.Time
 	LastCodexMessage       string
 	CodexInputTokens       int64
 	CodexOutputTokens      int64
@@ -95,13 +95,13 @@ type RetryEntry struct {
 
 // RunningEntry tracks a running worker in the orchestrator.
 type RunningEntry struct {
-	IssueID                string
-	Identifier             string
-	Issue                  Issue
-	Session                LiveSession
-	RetryAttempt           int
-	StartedAt              time.Time
-	CancelFunc             func()
+	IssueID      string
+	Identifier   string
+	Issue        Issue
+	Session      LiveSession
+	RetryAttempt int
+	StartedAt    time.Time
+	CancelFunc   func()
 }
 
 // CodexTotals holds aggregate token and runtime counters.
@@ -114,15 +114,15 @@ type CodexTotals struct {
 
 // CodexEvent is emitted from the agent runner to the orchestrator.
 type CodexEvent struct {
-	Event              string
-	Timestamp          time.Time
-	CodexAppServerPID  string
-	Usage              *TokenUsage
-	Message            string
-	Error              string
-	SessionID          string
-	ThreadID           string
-	TurnID             string
+	Event             string
+	Timestamp         time.Time
+	CodexAppServerPID string
+	Usage             *TokenUsage
+	Message           string
+	Error             string
+	SessionID         string
+	ThreadID          string
+	TurnID            string
 }
 
 // TokenUsage holds token count data from an agent event.

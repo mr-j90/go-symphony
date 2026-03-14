@@ -104,11 +104,11 @@ func (r *ClaudeRunner) StartClaudeSession(ctx context.Context, workspacePath str
 
 // ClaudeResult is the JSON output from `claude -p --output-format json`.
 type ClaudeResult struct {
-	Result    string `json:"result"`
-	SessionID string `json:"session_id"`
+	Result    string  `json:"result"`
+	SessionID string  `json:"session_id"`
 	CostUSD   float64 `json:"cost_usd"`
 	Duration  float64 `json:"duration_seconds"`
-	TurnCount int    `json:"num_turns"`
+	TurnCount int     `json:"num_turns"`
 }
 
 // ClaudeStreamEvent is one line from `claude -p --output-format stream-json`.

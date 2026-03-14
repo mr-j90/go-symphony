@@ -20,12 +20,12 @@ type EventCallback func(event model.CodexEvent)
 
 // RunnerConfig holds the agent runner's configuration.
 type RunnerConfig struct {
-	Command          string
-	ApprovalPolicy   string
-	ThreadSandbox    string
+	Command           string
+	ApprovalPolicy    string
+	ThreadSandbox     string
 	TurnSandboxPolicy string
-	TurnTimeoutMS    int
-	ReadTimeoutMS    int
+	TurnTimeoutMS     int
+	ReadTimeoutMS     int
 }
 
 // Runner manages a Codex app-server session.
