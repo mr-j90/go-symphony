@@ -69,7 +69,7 @@ func (r *Runner) StartSession(ctx context.Context, workspacePath string) (*Sessi
 		"workspace", workspacePath,
 	)
 
-	cmd := exec.CommandContext(ctx, "bash", "-lc", r.config.Command)
+	cmd := exec.CommandContext(ctx, "bash", "-lc", r.config.Command) //nolint:gosec // command is from trusted config
 	cmd.Dir = workspacePath
 
 	stdin, err := cmd.StdinPipe()
@@ -132,8 +132,8 @@ func (s *Session) handshake(ctx context.Context, workspacePath string) error {
 	_ = initResp
 
 	// 2. initialized notification
-	if err := s.sendNotification("initialized", map[string]any{}); err != nil {
-		return fmt.Errorf("startup_failed: initialized notification: %w", err)
+	if notifErr := s.sendNotification("initialized", map[string]any{}); notifErr != nil {
+		return fmt.Errorf("startup_failed: initialized notification: %w", notifErr)
 	}
 
 	// 3. thread/start
@@ -289,8 +289,8 @@ func (s *Session) streamTurn(ctx context.Context, sessionID string, onEvent Even
 		case "turn/failed":
 			errMsg := extractErrorMessage(msg)
 			return fmt.Errorf("turn_failed: %s", errMsg)
-		case "turn/cancelled":
-			return fmt.Errorf("turn_cancelled")
+		case "turn/cancelled": //nolint:misspell // Codex protocol event name
+			return fmt.Errorf("turn_canceled")
 		}
 
 		// Check for approval requests - auto-approve
@@ -316,8 +316,8 @@ func (s *Session) classifyMessage(method string, msg map[string]any) model.Codex
 		return model.CodexEvent{Event: "turn_completed"}
 	case method == "turn/failed":
 		return model.CodexEvent{Event: "turn_failed", Error: extractErrorMessage(msg)}
-	case method == "turn/cancelled":
-		return model.CodexEvent{Event: "turn_cancelled"}
+	case method == "turn/cancelled": //nolint:misspell // Codex protocol event name
+		return model.CodexEvent{Event: "turn_canceled"}
 	case strings.Contains(method, "approval"):
 		return model.CodexEvent{Event: "approval_auto_approved", Message: method}
 	case strings.Contains(method, "notification") || method == "":
@@ -490,10 +490,10 @@ func (s *Session) Stop() {
 		s.stdin.Close()
 	}
 	if s.cmd != nil && s.cmd.Process != nil {
-		s.cmd.Process.Kill()
+		_ = s.cmd.Process.Kill()
 	}
 	if s.cmd != nil {
-		s.cmd.Wait()
+		_ = s.cmd.Wait()
 	}
 }
 

@@ -36,8 +36,9 @@ func New(orch *orchestrator.Orchestrator, port int, logger *slog.Logger) *Server
 	mux.HandleFunc("POST /api/v1/refresh", s.handleRefresh)
 
 	s.srv = &http.Server{
-		Addr:    s.addr,
-		Handler: mux,
+		Addr:              s.addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	return s
@@ -52,11 +53,11 @@ func (s *Server) Start(ctx context.Context) error {
 	s.addr = ln.Addr().String()
 	s.logger.Info("http server started", "addr", s.addr)
 
-	go func() {
+	go func() { //nolint:gosec // intentional background goroutine for graceful shutdown
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		s.srv.Shutdown(shutdownCtx)
+		_ = s.srv.Shutdown(shutdownCtx)
 	}()
 
 	go func() {
@@ -219,5 +220,5 @@ func errorResp(code, message string) map[string]any {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(v)
 }

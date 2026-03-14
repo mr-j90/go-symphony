@@ -146,7 +146,7 @@ func main() {
 		logger.Info("HTTP server listening", "addr", srv.Addr())
 	}
 
-	// Run orchestrator (blocks until ctx is cancelled)
+	// Run orchestrator (blocks until ctx is canceled)
 	logger.Info("symphony starting",
 		"agent_type", cfg.AgentType,
 		"tracker", cfg.TrackerKind,

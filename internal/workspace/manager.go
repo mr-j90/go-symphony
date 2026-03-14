@@ -85,7 +85,7 @@ func (m *Manager) CreateForIssue(ctx context.Context, identifier string) (*model
 			return nil, fmt.Errorf("workspace stat: %w", err)
 		}
 		// Create the directory
-		if err := os.MkdirAll(wsPath, 0o755); err != nil {
+		if err := os.MkdirAll(wsPath, 0o750); err != nil {
 			return nil, fmt.Errorf("workspace mkdir: %w", err)
 		}
 		createdNow = true
@@ -94,7 +94,7 @@ func (m *Manager) CreateForIssue(ctx context.Context, identifier string) (*model
 		if err := os.Remove(wsPath); err != nil {
 			return nil, fmt.Errorf("workspace remove non-dir: %w", err)
 		}
-		if err := os.MkdirAll(wsPath, 0o755); err != nil {
+		if err := os.MkdirAll(wsPath, 0o750); err != nil {
 			return nil, fmt.Errorf("workspace mkdir: %w", err)
 		}
 		createdNow = true
@@ -183,7 +183,7 @@ func (m *Manager) runHook(ctx context.Context, script, cwd string) error {
 	hookCtx, cancel := context.WithTimeout(ctx, m.hookTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(hookCtx, "bash", "-lc", script)
+	cmd := exec.CommandContext(hookCtx, "bash", "-lc", script) //nolint:gosec // hook scripts are from trusted config
 	cmd.Dir = cwd
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

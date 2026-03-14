@@ -80,7 +80,7 @@ func DefaultConfig() *Config {
 		TrackerAPIKey:         "",
 		TrackerProjectSlug:    "",
 		TrackerActiveStates:   []string{"Todo", "In Progress"},
-		TrackerTerminalStates: []string{"Closed", "Cancelled", "Canceled", "Duplicate", "Done"},
+		TrackerTerminalStates: []string{"Closed", "Cancelled", "Canceled", "Duplicate", "Done"}, //nolint:misspell // "Cancelled" is a real Linear workflow state name
 
 		PollIntervalMS: 30000,
 

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -95,7 +96,7 @@ func TestCreateForIssue_PathContainment(t *testing.T) {
 
 	// Path must be under root
 	absRoot, _ := filepath.Abs(root)
-	if !filepath.HasPrefix(ws.Path, absRoot) {
+	if !strings.HasPrefix(ws.Path, absRoot) {
 		t.Errorf("workspace path %s is not under root %s", ws.Path, absRoot)
 	}
 }

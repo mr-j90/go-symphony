@@ -286,7 +286,7 @@ func (o *Orchestrator) dispatchIssue(ctx context.Context, issue model.Issue, att
 		entry.RetryAttempt = *attempt
 	}
 
-	workerCtx, cancel := context.WithCancel(ctx)
+	workerCtx, cancel := context.WithCancel(ctx) //nolint:gosec // cancel is stored in entry.CancelFunc and called on cleanup
 	entry.CancelFunc = cancel
 	o.running[issue.ID] = entry
 	o.mu.Unlock()
@@ -350,8 +350,8 @@ func (o *Orchestrator) runWorkerCodex(ctx context.Context, issue model.Issue, at
 	}
 
 	// Before run hook
-	if err := o.ws.RunBeforeRunHook(ctx, ws.Path); err != nil {
-		workerErr = fmt.Errorf("before_run hook error: %w", err)
+	if hookErr := o.ws.RunBeforeRunHook(ctx, ws.Path); hookErr != nil {
+		workerErr = fmt.Errorf("before_run hook error: %w", hookErr)
 		o.ws.RunAfterRunHook(ctx, ws.Path)
 		return
 	}
@@ -425,8 +425,8 @@ func (o *Orchestrator) runWorkerClaude(ctx context.Context, issue model.Issue, a
 	}
 
 	// Before run hook
-	if err := o.ws.RunBeforeRunHook(ctx, ws.Path); err != nil {
-		workerErr = fmt.Errorf("before_run hook error: %w", err)
+	if hookErr := o.ws.RunBeforeRunHook(ctx, ws.Path); hookErr != nil {
+		workerErr = fmt.Errorf("before_run hook error: %w", hookErr)
 		o.ws.RunAfterRunHook(ctx, ws.Path)
 		return
 	}
@@ -741,7 +741,7 @@ func (o *Orchestrator) reconcile(ctx context.Context) {
 				"new_state", issue.State,
 			)
 			entry.CancelFunc()
-			go o.ws.CleanWorkspace(context.Background(), entry.Identifier)
+			go o.ws.CleanWorkspace(context.Background(), entry.Identifier) //nolint:gosec // intentionally detached from request context for cleanup
 			delete(o.running, id)
 			delete(o.claimed, id)
 		} else if o.cfg.IsActiveState(issue.State) {

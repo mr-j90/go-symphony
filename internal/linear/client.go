@@ -228,8 +228,8 @@ func (c *Client) TransitionIssueState(ctx context.Context, issueID, targetStateN
 		} `json:"data"`
 		Errors []graphqlError `json:"errors"`
 	}
-	if err := json.Unmarshal(resp, &stateResult); err != nil {
-		return fmt.Errorf("linear_unknown_payload: %w", err)
+	if unmarshalErr := json.Unmarshal(resp, &stateResult); unmarshalErr != nil {
+		return fmt.Errorf("linear_unknown_payload: %w", unmarshalErr)
 	}
 	if len(stateResult.Errors) > 0 {
 		return fmt.Errorf("linear_graphql_errors: %s", stateResult.Errors[0].Message)

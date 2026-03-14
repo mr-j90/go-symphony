@@ -259,8 +259,8 @@ func TestIsTerminalState(t *testing.T) {
 	if !c.IsTerminalState("done") {
 		t.Error("done (lowercase) should be terminal")
 	}
-	if !c.IsTerminalState("Cancelled") {
-		t.Error("Cancelled should be terminal")
+	if !c.IsTerminalState("Cancelled") { //nolint:misspell // Linear uses "Cancelled"
+		t.Error("Cancelled should be terminal") //nolint:misspell // Linear uses "Cancelled"
 	}
 	if !c.IsTerminalState("Canceled") {
 		t.Error("Canceled should be terminal")

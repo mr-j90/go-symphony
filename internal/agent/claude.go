@@ -90,7 +90,7 @@ func (r *ClaudeRunner) StartClaudeSession(ctx context.Context, workspacePath str
 	_, err := exec.LookPath(r.config.Command)
 	if err != nil {
 		// Try via bash
-		testCmd := exec.CommandContext(ctx, "bash", "-lc", fmt.Sprintf("which %s", r.config.Command))
+		testCmd := exec.CommandContext(ctx, "bash", "-lc", fmt.Sprintf("which %s", r.config.Command)) //nolint:gosec // command is from trusted config
 		if testErr := testCmd.Run(); testErr != nil {
 			return nil, fmt.Errorf("claude_not_found: %s is not available in PATH: %w", r.config.Command, err)
 		}
@@ -138,7 +138,7 @@ func (s *ClaudeSession) RunTurn(ctx context.Context, prompt string, issue model.
 		"session_id", s.sessionID,
 	)
 
-	cmd := exec.CommandContext(turnCtx, "bash", "-lc", s.runner.config.Command+" "+strings.Join(args, " "))
+	cmd := exec.CommandContext(turnCtx, "bash", "-lc", s.runner.config.Command+" "+strings.Join(args, " ")) //nolint:gosec // command is from trusted config
 	cmd.Dir = workspacePath
 
 	stdout, err := cmd.StdoutPipe()
