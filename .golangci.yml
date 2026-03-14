@@ -66,13 +66,11 @@ linters:
 
     presets:
       - comments
-      - stdErrorHandling
+      - std-error-handling
+    max-issues-per-linter: 50
+    max-same-issues: 10
 
 formatters:
   enable:
     - gofmt
     - goimports
-
-output:
-  max-issues-per-linter: 50
-  max-same-issues: 10
