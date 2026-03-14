@@ -1,0 +1,73 @@
+---
+tracker:
+  kind: linear
+  api_key: $LINEAR_API_KEY
+  project_slug: my-project
+  active_states:
+    - Todo
+    - In Progress
+  terminal_states:
+    - Done
+    - Closed
+    - Cancelled
+    - Canceled
+    - Duplicate
+
+polling:
+  interval_ms: 30000
+
+workspace:
+  root: ~/symphony_workspaces
+
+hooks:
+  after_create: |
+    git clone git@github.com:myorg/myrepo.git .
+  before_run: |
+    git fetch origin
+    git checkout main
+    git pull
+  timeout_ms: 120000
+
+agent:
+  max_concurrent_agents: 5
+  max_turns: 20
+  max_retry_backoff_ms: 300000
+  max_concurrent_agents_by_state:
+    todo: 3
+    in progress: 5
+
+codex:
+  command: codex app-server
+  approval_policy: auto-edit
+  turn_timeout_ms: 3600000
+  stall_timeout_ms: 300000
+
+server:
+  port: 8080
+---
+You are an autonomous coding agent working on issue {{ issue.identifier }}: {{ issue.title }}.
+
+{% if issue.description %}
+## Issue Description
+{{ issue.description }}
+{% endif %}
+
+{% if issue.labels.size > 0 %}
+Labels: {% for label in issue.labels %}{{ label }}{% unless forloop.last %}, {% endunless %}{% endfor %}
+{% endif %}
+
+{% if issue.url %}
+Issue URL: {{ issue.url }}
+{% endif %}
+
+{% if attempt %}
+This is retry attempt {{ attempt }}. Review your previous work and continue from where you left off.
+{% endif %}
+
+## Instructions
+1. Read and understand the issue requirements
+2. Implement the necessary changes
+3. Write tests for your changes
+4. Ensure all tests pass
+5. Create a pull request with a clear description
+6. Move the issue to "Human Review" when complete
