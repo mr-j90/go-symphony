@@ -1,19 +1,19 @@
+version: "2"
+
 run:
   timeout: 5m
 
 linters:
+  default: none
   enable:
     # Bugs
     - bodyclose        # unclosed HTTP response bodies
     - durationcheck    # bad time.Duration multiplications
     - errcheck         # unchecked errors
-    - exportloopref    # loop variable capture
     - nilerr           # returning nil after checking err != nil
     - sqlclosecheck    # unclosed sql.Rows
 
     # Style & Simplification
-    - gofmt            # standard formatting
-    - goimports        # import ordering
     - govet            # go vet checks
     - ineffassign      # unused assignments
     - misspell         # spelling mistakes in comments/strings
@@ -28,44 +28,51 @@ linters:
     # Performance
     - prealloc         # preallocate slices where possible
 
-  disable:
-    - depguard         # we don't need dependency allowlisting
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
 
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: false
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment  # not worth the noise
 
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment  # not worth the noise
+    gosec:
+      excludes:
+        - G104  # unhandled errors (covered by errcheck)
+        - G304  # file inclusion (we intentionally read user-specified paths)
 
-  gosec:
-    excludes:
-      - G104  # unhandled errors (covered by errcheck)
-      - G304  # file inclusion (we intentionally read user-specified paths)
+    misspell:
+      locale: US
 
-  misspell:
-    locale: US
+    staticcheck:
+      checks: ["all"]
 
-  staticcheck:
-    checks: ["all"]
+  exclusions:
+    rules:
+      # Test files can be more relaxed
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - unparam
 
-issues:
-  exclude-rules:
-    # Test files can be more relaxed
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gosec
-        - unparam
+      # main.go uses os.Exit which is fine
+      - path: main\.go
+        linters:
+          - gosec
+        text: "G104"
 
-    # main.go uses os.Exit which is fine
-    - path: main\.go
-      linters:
-        - gosec
-      text: "G104"
+    presets:
+      - comments
+      - stdErrorHandling
 
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+output:
   max-issues-per-linter: 50
   max-same-issues: 10
