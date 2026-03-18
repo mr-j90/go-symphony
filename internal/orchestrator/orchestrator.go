@@ -233,6 +233,11 @@ func (o *Orchestrator) shouldDispatch(issue model.Issue) (bool, string) {
 		return false, "missing_required_fields"
 	}
 
+	// Label filter: if required_labels is set, issue must have at least one matching label
+	if !o.cfg.HasRequiredLabel(issue.Labels) {
+		return false, "missing_required_label"
+	}
+
 	// Must be in active states
 	if !o.cfg.IsActiveState(issue.State) {
 		return false, fmt.Sprintf("state_not_active: %s", issue.State)
@@ -710,14 +715,19 @@ func (o *Orchestrator) onRetryTimer(issueID string) {
 		}
 	}
 
-	if found == nil {
+	if found == nil || !o.cfg.HasRequiredLabel(found.Labels) {
 		// Release claim
 		o.mu.Lock()
 		delete(o.claimed, issueID)
 		o.mu.Unlock()
-		o.logger.Info("retry: issue no longer candidate, released",
+		reason := "no longer candidate"
+		if found != nil {
+			reason = "missing required label"
+		}
+		o.logger.Info("retry: issue released",
 			"issue_id", issueID,
 			"issue_identifier", entry.Identifier,
+			"reason", reason,
 		)
 		return
 	}

@@ -12,6 +12,8 @@ tracker:
     - Cancelled
     - Canceled
     - Duplicate
+  required_labels:
+    - bug
 
 polling:
   interval_ms: 30000
@@ -31,7 +33,7 @@ hooks:
 agent:
   type: claude_code
   dispatch_transition_state: In Progress
-  max_concurrent_agents: 5
+  max_concurrent_agents: 1
   max_turns: 20
   max_retry_backoff_ms: 300000
   max_concurrent_agents_by_state:

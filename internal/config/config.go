@@ -21,6 +21,7 @@ type Config struct {
 	TrackerProjectSlug    string
 	TrackerActiveStates   []string
 	TrackerTerminalStates []string
+	TrackerRequiredLabels []string // only dispatch issues that have at least one of these labels
 
 	// Polling
 	PollIntervalMS int
@@ -127,6 +128,13 @@ func LoadFromMap(fm map[string]any) (*Config, error) {
 		}
 		if v, ok := getStrSlice(tracker, "terminal_states"); ok {
 			c.TrackerTerminalStates = v
+		}
+		if v, ok := getStrSlice(tracker, "required_labels"); ok {
+			// Normalize to lowercase for case-insensitive matching
+			for i := range v {
+				v[i] = strings.ToLower(v[i])
+			}
+			c.TrackerRequiredLabels = v
 		}
 	}
 
@@ -341,6 +349,22 @@ func (c *Config) IsActiveState(state string) bool {
 	for _, s := range c.TrackerActiveStates {
 		if strings.ToLower(s) == lower {
 			return true
+		}
+	}
+	return false
+}
+
+// HasRequiredLabel checks if the issue labels contain at least one of the required labels.
+// Returns true if no required labels are configured (i.e., all issues pass).
+func (c *Config) HasRequiredLabel(issueLabels []string) bool {
+	if len(c.TrackerRequiredLabels) == 0 {
+		return true
+	}
+	for _, required := range c.TrackerRequiredLabels {
+		for _, label := range issueLabels {
+			if strings.ToLower(label) == required {
+				return true
+			}
 		}
 	}
 	return false

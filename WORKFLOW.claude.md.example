@@ -12,6 +12,11 @@ tracker:
     - Cancelled
     - Canceled
     - Duplicate
+  # Only pick up issues with at least one of these Linear labels.
+  # Omit or leave empty to pick up all issues regardless of labels.
+  # required_labels:
+  #   - bug
+  #   - feature
 
 polling:
   interval_ms: 30000
