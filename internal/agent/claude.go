@@ -214,6 +214,7 @@ func (s *ClaudeSession) RunTurn(ctx context.Context, prompt string, issue model.
 				Timestamp: time.Now().UTC(),
 				Message:   extractClaudeMessage(event),
 				SessionID: sessionID,
+				Usage:     extractClaudeUsage([]byte(line)),
 			}
 			onEvent(ce)
 		}
@@ -327,4 +328,47 @@ func truncate(s string, maxLen int) string {
 func shellescape(s string) string {
 	// Wrap in single quotes and escape any single quotes within
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
+// extractClaudeUsage parses token usage from a raw Claude stream-json line.
+// Claude emits usage in two shapes:
+//
+//	result events:    {"type":"result", "usage":{"input_tokens":N,"output_tokens":N,...}}
+//	assistant events: {"type":"assistant","message":{"usage":{"input_tokens":N,"output_tokens":N,...}}}
+func extractClaudeUsage(raw []byte) *model.TokenUsage {
+	// Use a flexible struct that captures both shapes without conflicting tags.
+	var envelope struct {
+		Usage *struct {
+			InputTokens  int64 `json:"input_tokens"`
+			OutputTokens int64 `json:"output_tokens"`
+		} `json:"usage"`
+		Message *struct {
+			Usage *struct {
+				InputTokens  int64 `json:"input_tokens"`
+				OutputTokens int64 `json:"output_tokens"`
+			} `json:"usage"`
+		} `json:"message"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return nil
+	}
+
+	var input, output int64
+
+	if envelope.Usage != nil {
+		input = envelope.Usage.InputTokens
+		output = envelope.Usage.OutputTokens
+	} else if envelope.Message != nil && envelope.Message.Usage != nil {
+		input = envelope.Message.Usage.InputTokens
+		output = envelope.Message.Usage.OutputTokens
+	}
+
+	if input == 0 && output == 0 {
+		return nil
+	}
+	return &model.TokenUsage{
+		InputTokens:  input,
+		OutputTokens: output,
+		TotalTokens:  input + output,
+	}
 }

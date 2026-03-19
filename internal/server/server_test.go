@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jordan/go-symphony/internal/model"
 	"github.com/jordan/go-symphony/internal/orchestrator"
 )
 
@@ -24,6 +25,61 @@ func newTestServer(snap orchestrator.StateSnapshot) *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", s.handleDashboard)
 	return httptest.NewServer(mux)
+}
+
+func TestDashboardShowsTokenCounts(t *testing.T) {
+	now := time.Now()
+	snap := orchestrator.StateSnapshot{
+		GeneratedAt: now,
+		Running: []orchestrator.RunningSnapshot{
+			{
+				IssueID:         "id-1",
+				IssueIdentifier: "ZYX-42",
+				IssueTitle:      "Some issue",
+				State:           "In Progress",
+				StartedAt:       now,
+				Tokens: orchestrator.TokenSnapshot{
+					InputTokens:  1234,
+					OutputTokens: 567,
+					TotalTokens:  1801,
+				},
+			},
+		},
+		CodexTotals: model.CodexTotals{
+			InputTokens:  5000,
+			OutputTokens: 2000,
+			TotalTokens:  7000,
+		},
+	}
+
+	ts := newTestServer(snap)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/") //nolint:noctx // test-only HTTP call
+	if err != nil {
+		t.Fatalf("GET /: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	html := string(body)
+
+	// Aggregate totals in header
+	for _, want := range []string{"5000", "2000", "7000"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("dashboard missing aggregate token count %q", want)
+		}
+	}
+
+	// Per-session tokens in running table
+	for _, want := range []string{"1234", "567", "1801"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("dashboard missing per-session token count %q", want)
+		}
+	}
 }
 
 func TestDashboardShowsIssueTitle(t *testing.T) {
