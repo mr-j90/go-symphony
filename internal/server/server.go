@@ -319,6 +319,7 @@ func (s *Server) handleAttachVideo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Limit upload to 500 MB.
+	r.Body = http.MaxBytesReader(w, r.Body, 500<<20)
 	if err := r.ParseMultipartForm(500 << 20); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResp("bad_request", "invalid multipart form: "+err.Error()))
 		return
@@ -333,7 +334,7 @@ func (s *Server) handleAttachVideo(w http.ResponseWriter, r *http.Request) {
 
 	// Buffer the file so we know its size before uploading.
 	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, file); err != nil {
+	if _, err = io.Copy(&buf, file); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResp("read_error", "failed to read video: "+err.Error()))
 		return
 	}
