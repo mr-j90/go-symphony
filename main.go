@@ -138,7 +138,7 @@ func main() {
 
 	// Start optional HTTP server
 	if httpPort >= 0 {
-		srv := server.New(orch, httpPort, logger)
+		srv := server.New(orch, linearClient, httpPort, logger)
 		if err := srv.Start(ctx); err != nil {
 			logger.Error("failed to start HTTP server", "error", err)
 			os.Exit(1)

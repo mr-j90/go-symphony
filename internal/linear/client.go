@@ -18,6 +18,19 @@ const (
 	networkTimeout  = 30 * time.Second
 )
 
+// UploadHeader is a key/value pair required when uploading to a pre-signed URL.
+type UploadHeader struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// FileUploadInfo holds the result of a Linear file upload request.
+type FileUploadInfo struct {
+	UploadURL string
+	AssetURL  string
+	Headers   []UploadHeader
+}
+
 // Client is the Linear GraphQL API client.
 type Client struct {
 	endpoint    string
@@ -405,6 +418,165 @@ func (c *Client) TransitionIssueState(ctx context.Context, issueID, targetStateN
 	}
 	if !mutResult.Data.IssueUpdate.Success {
 		return fmt.Errorf("linear_state_transition_failed: issueUpdate returned success=false")
+	}
+
+	return nil
+}
+
+// FetchIssueIDByIdentifier resolves a human-readable issue identifier (e.g. "ZYX-75") to its internal UUID.
+func (c *Client) FetchIssueIDByIdentifier(ctx context.Context, identifier string) (string, error) {
+	query := `query($identifier: String!) {
+		issues(filter: { identifier: { eq: $identifier } }) {
+			nodes {
+				id
+				identifier
+			}
+		}
+	}`
+
+	resp, err := c.doQuery(ctx, query, map[string]any{"identifier": identifier})
+	if err != nil {
+		return "", fmt.Errorf("linear_api_request: fetch issue by identifier: %w", err)
+	}
+
+	var result struct {
+		Data struct {
+			Issues struct {
+				Nodes []struct {
+					ID         string `json:"id"`
+					Identifier string `json:"identifier"`
+				} `json:"nodes"`
+			} `json:"issues"`
+		} `json:"data"`
+		Errors []graphqlError `json:"errors"`
+	}
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return "", fmt.Errorf("linear_unknown_payload: %w", err)
+	}
+	if len(result.Errors) > 0 {
+		return "", fmt.Errorf("linear_graphql_errors: %s", result.Errors[0].Message)
+	}
+	if len(result.Data.Issues.Nodes) == 0 {
+		return "", fmt.Errorf("linear_issue_not_found: no issue with identifier %q", identifier)
+	}
+
+	return result.Data.Issues.Nodes[0].ID, nil
+}
+
+// RequestFileUpload requests a pre-signed upload URL from Linear for a file attachment.
+func (c *Client) RequestFileUpload(ctx context.Context, filename, contentType string, size int) (*FileUploadInfo, error) {
+	mutation := `mutation($contentType: String!, $filename: String!, $size: Int!) {
+		fileUpload(contentType: $contentType, filename: $filename, size: $size) {
+			uploadFile {
+				uploadUrl
+				assetUrl
+				headers {
+					key
+					value
+				}
+			}
+		}
+	}`
+
+	resp, err := c.doQuery(ctx, mutation, map[string]any{
+		"contentType": contentType,
+		"filename":    filename,
+		"size":        size,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("linear_api_request: file upload: %w", err)
+	}
+
+	var result struct {
+		Data struct {
+			FileUpload struct {
+				UploadFile struct {
+					UploadURL string         `json:"uploadUrl"`
+					AssetURL  string         `json:"assetUrl"`
+					Headers   []UploadHeader `json:"headers"`
+				} `json:"uploadFile"`
+			} `json:"fileUpload"`
+		} `json:"data"`
+		Errors []graphqlError `json:"errors"`
+	}
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, fmt.Errorf("linear_unknown_payload: %w", err)
+	}
+	if len(result.Errors) > 0 {
+		return nil, fmt.Errorf("linear_graphql_errors: %s", result.Errors[0].Message)
+	}
+
+	f := result.Data.FileUpload.UploadFile
+	return &FileUploadInfo{
+		UploadURL: f.UploadURL,
+		AssetURL:  f.AssetURL,
+		Headers:   f.Headers,
+	}, nil
+}
+
+// UploadFileToURL uploads data to a pre-signed URL returned by RequestFileUpload.
+func (c *Client) UploadFileToURL(ctx context.Context, info *FileUploadInfo, contentType string, size int64, data io.Reader) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, info.UploadURL, data)
+	if err != nil {
+		return fmt.Errorf("linear_file_upload: create request: %w", err)
+	}
+	req.ContentLength = size
+	req.Header.Set("Content-Type", contentType)
+	for _, h := range info.Headers {
+		req.Header.Set(h.Key, h.Value)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("linear_file_upload: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("linear_file_upload_status: %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// CreateAttachment creates an attachment on a Linear issue linking to the given URL.
+func (c *Client) CreateAttachment(ctx context.Context, issueID, title, url string) error {
+	mutation := `mutation($issueId: String!, $title: String!, $url: String!) {
+		attachmentCreate(input: { issueId: $issueId, title: $title, url: $url }) {
+			success
+			attachment {
+				id
+				url
+			}
+		}
+	}`
+
+	resp, err := c.doQuery(ctx, mutation, map[string]any{
+		"issueId": issueID,
+		"title":   title,
+		"url":     url,
+	})
+	if err != nil {
+		return fmt.Errorf("linear_api_request: create attachment: %w", err)
+	}
+
+	var result struct {
+		Data struct {
+			AttachmentCreate struct {
+				Success bool `json:"success"`
+			} `json:"attachmentCreate"`
+		} `json:"data"`
+		Errors []graphqlError `json:"errors"`
+	}
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return fmt.Errorf("linear_unknown_payload: %w", err)
+	}
+	if len(result.Errors) > 0 {
+		return fmt.Errorf("linear_graphql_errors: %s", result.Errors[0].Message)
+	}
+	if !result.Data.AttachmentCreate.Success {
+		return fmt.Errorf("linear_attachment_failed: attachmentCreate returned success=false")
 	}
 
 	return nil

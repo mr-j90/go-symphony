@@ -258,3 +258,195 @@ func TestCreateIssue_SuccessFalse(t *testing.T) {
 		t.Errorf("expected %q, got %q", want, err.Error())
 	}
 }
+
+func TestFetchIssueIDByIdentifier_Success(t *testing.T) {
+	called := false
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		var req map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		vars := req["variables"].(map[string]any)
+		if vars["identifier"] != "ZYX-75" {
+			t.Errorf("expected identifier=ZYX-75, got %v", vars["identifier"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"issues": map[string]any{
+					"nodes": []map[string]any{
+						{"id": "uuid-abc", "identifier": "ZYX-75"},
+					},
+				},
+			},
+		})
+	})
+
+	id, err := client.FetchIssueIDByIdentifier(context.Background(), "ZYX-75")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != "uuid-abc" {
+		t.Errorf("expected uuid-abc, got %s", id)
+	}
+	if !called {
+		t.Fatal("handler was not called")
+	}
+}
+
+func TestFetchIssueIDByIdentifier_NotFound(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"issues": map[string]any{"nodes": []any{}},
+			},
+		})
+	})
+
+	_, err := client.FetchIssueIDByIdentifier(context.Background(), "ZYX-99")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if want := `linear_issue_not_found: no issue with identifier "ZYX-99"`; err.Error() != want {
+		t.Errorf("expected %q, got %q", want, err.Error())
+	}
+}
+
+func TestRequestFileUpload_Success(t *testing.T) {
+	called := false
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		var req map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		vars := req["variables"].(map[string]any)
+		if vars["filename"] != "recording.webm" {
+			t.Errorf("expected filename=recording.webm, got %v", vars["filename"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"fileUpload": map[string]any{
+					"uploadFile": map[string]any{
+						"uploadUrl": "https://s3.example.com/upload",
+						"assetUrl":  "https://cdn.example.com/asset.webm",
+						"headers": []map[string]any{
+							{"key": "x-amz-acl", "value": "public-read"},
+						},
+					},
+				},
+			},
+		})
+	})
+
+	info, err := client.RequestFileUpload(context.Background(), "recording.webm", "video/webm", 1024)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info.UploadURL != "https://s3.example.com/upload" {
+		t.Errorf("unexpected UploadURL: %s", info.UploadURL)
+	}
+	if info.AssetURL != "https://cdn.example.com/asset.webm" {
+		t.Errorf("unexpected AssetURL: %s", info.AssetURL)
+	}
+	if len(info.Headers) != 1 || info.Headers[0].Key != "x-amz-acl" {
+		t.Errorf("unexpected headers: %+v", info.Headers)
+	}
+	if !called {
+		t.Fatal("handler was not called")
+	}
+}
+
+func TestRequestFileUpload_GraphQLError(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"errors": []map[string]any{{"message": "unauthorized"}},
+		})
+	})
+
+	_, err := client.RequestFileUpload(context.Background(), "rec.webm", "video/webm", 512)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if want := "linear_graphql_errors: unauthorized"; err.Error() != want {
+		t.Errorf("expected %q, got %q", want, err.Error())
+	}
+}
+
+func TestCreateAttachment_Success(t *testing.T) {
+	called := false
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		var req map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		vars := req["variables"].(map[string]any)
+		if vars["issueId"] != "issue-123" {
+			t.Errorf("expected issueId=issue-123, got %v", vars["issueId"])
+		}
+		if vars["url"] != "https://cdn.example.com/rec.webm" {
+			t.Errorf("expected url=..., got %v", vars["url"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"attachmentCreate": map[string]any{
+					"success": true,
+					"attachment": map[string]any{
+						"id":  "att-1",
+						"url": "https://cdn.example.com/rec.webm",
+					},
+				},
+			},
+		})
+	})
+
+	err := client.CreateAttachment(context.Background(), "issue-123", "Screen recording", "https://cdn.example.com/rec.webm")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !called {
+		t.Fatal("handler was not called")
+	}
+}
+
+func TestCreateAttachment_SuccessFalse(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"attachmentCreate": map[string]any{"success": false},
+			},
+		})
+	})
+
+	err := client.CreateAttachment(context.Background(), "issue-123", "rec", "https://example.com/v.webm")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if want := "linear_attachment_failed: attachmentCreate returned success=false"; err.Error() != want {
+		t.Errorf("expected %q, got %q", want, err.Error())
+	}
+}
+
+func TestCreateAttachment_GraphQLError(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"errors": []map[string]any{{"message": "not found"}},
+		})
+	})
+
+	err := client.CreateAttachment(context.Background(), "issue-123", "rec", "https://example.com/v.webm")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if want := "linear_graphql_errors: not found"; err.Error() != want {
+		t.Errorf("expected %q, got %q", want, err.Error())
+	}
+}
