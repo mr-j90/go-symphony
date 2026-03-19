@@ -13,9 +13,15 @@ import (
 	"github.com/jordan/go-symphony/internal/orchestrator"
 )
 
+// orchClient is the subset of orchestrator.Orchestrator used by the server.
+type orchClient interface {
+	Snapshot() orchestrator.StateSnapshot
+	TriggerPoll(ctx context.Context)
+}
+
 // Server is the optional HTTP observability server.
 type Server struct {
-	orch   *orchestrator.Orchestrator
+	orch   orchClient
 	logger *slog.Logger
 	srv    *http.Server
 	addr   string
@@ -109,11 +115,11 @@ Runtime: %.1fs
 	if len(snap.Running) > 0 {
 		fmt.Fprintf(w, `<h2 class="running">Running (%d)</h2>
 <table>
-<tr><th>Issue</th><th>State</th><th>Session</th><th>Turns</th><th>Last Event</th><th>Started</th><th>Tokens</th></tr>
+<tr><th>Issue</th><th>Title</th><th>State</th><th>Session</th><th>Turns</th><th>Last Event</th><th>Started</th><th>Tokens</th></tr>
 `, len(snap.Running))
 		for _, r := range snap.Running {
-			fmt.Fprintf(w, "<tr><td>%s</td><td>%s</td><td>%s</td><td>%d</td><td>%s</td><td>%s</td><td>%d/%d/%d</td></tr>\n",
-				r.IssueIdentifier, r.State, r.SessionID, r.TurnCount, r.LastEvent,
+			fmt.Fprintf(w, "<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%d</td><td>%s</td><td>%s</td><td>%d/%d/%d</td></tr>\n",
+				r.IssueIdentifier, r.IssueTitle, r.State, r.SessionID, r.TurnCount, r.LastEvent,
 				r.StartedAt.Format("15:04:05"),
 				r.Tokens.InputTokens, r.Tokens.OutputTokens, r.Tokens.TotalTokens,
 			)
@@ -124,11 +130,11 @@ Runtime: %.1fs
 	if len(snap.Retrying) > 0 {
 		fmt.Fprintf(w, `<h2 class="retrying">Retrying (%d)</h2>
 <table>
-<tr><th>Issue</th><th>Attempt</th><th>Due At</th><th>Error</th></tr>
+<tr><th>Issue</th><th>Title</th><th>Attempt</th><th>Due At</th><th>Error</th></tr>
 `, len(snap.Retrying))
 		for _, r := range snap.Retrying {
-			fmt.Fprintf(w, "<tr><td>%s</td><td>%d</td><td>%s</td><td>%s</td></tr>\n",
-				r.IssueIdentifier, r.Attempt, r.DueAt.Format("15:04:05"), r.Error,
+			fmt.Fprintf(w, "<tr><td>%s</td><td>%s</td><td>%d</td><td>%s</td><td>%s</td></tr>\n",
+				r.IssueIdentifier, r.IssueTitle, r.Attempt, r.DueAt.Format("15:04:05"), r.Error,
 			)
 		}
 		fmt.Fprintf(w, "</table>\n")
