@@ -88,6 +88,7 @@ type LiveSession struct {
 type RetryEntry struct {
 	IssueID    string
 	Identifier string
+	IssueTitle string
 	Attempt    int // 1-based
 	DueAtMS    int64
 	Error      string
