@@ -2,9 +2,12 @@ package orchestrator
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -402,6 +405,12 @@ func (o *Orchestrator) runWorkerCodex(ctx context.Context, issue model.Issue, at
 		return
 	}
 
+	// Fetch team ID once for creating findings issues later.
+	teamID, err := o.linear.FetchTeamID(ctx, issue.ID)
+	if err != nil {
+		o.logger.Warn("failed to fetch team ID, findings will not be reported", "issue_id", issue.ID, "error", err)
+	}
+
 	// Start agent session
 	session, err := o.runner.StartSession(ctx, ws.Path)
 	if err != nil {
@@ -432,6 +441,11 @@ func (o *Orchestrator) runWorkerCodex(ctx context.Context, issue model.Issue, at
 		if err != nil {
 			workerErr = fmt.Errorf("agent turn error: %w", err)
 			return
+		}
+
+		// Process any unrelated findings the agent surfaced.
+		if teamID != "" {
+			o.processFindings(ctx, ws.Path, issue, teamID)
 		}
 
 		// Check issue state
@@ -481,6 +495,12 @@ func (o *Orchestrator) runWorkerClaude(ctx context.Context, issue model.Issue, a
 		o.ws.RunAfterRunHook(ctx, ws.Path)
 	}()
 
+	// Fetch team ID once for creating findings issues later.
+	teamID, err := o.linear.FetchTeamID(ctx, issue.ID)
+	if err != nil {
+		o.logger.Warn("failed to fetch team ID, findings will not be reported", "issue_id", issue.ID, "error", err)
+	}
+
 	// Start Claude session
 	session, err := o.claudeRunner.StartClaudeSession(ctx, ws.Path)
 	if err != nil {
@@ -509,6 +529,11 @@ func (o *Orchestrator) runWorkerClaude(ctx context.Context, issue model.Issue, a
 			return
 		}
 
+		// Process any unrelated findings the agent surfaced.
+		if teamID != "" {
+			o.processFindings(ctx, ws.Path, issue, teamID)
+		}
+
 		// Check issue state
 		refreshed, err := o.linear.FetchIssueStatesByIDs(ctx, []string{issue.ID})
 		if err != nil {
@@ -527,13 +552,78 @@ func (o *Orchestrator) runWorkerClaude(ctx context.Context, issue model.Issue, a
 	// Normal exit
 }
 
+// findingsFilePath is the workspace-relative path agents write unrelated findings to.
+const findingsFilePath = ".symphony/findings.json"
+
+// findingsPromptInstructions is appended to the first turn's prompt so the agent knows
+// how to surface unrelated issues it discovers during its work.
+const findingsPromptInstructions = `
+---
+If you discover bugs, problems, or issues that are UNRELATED to the current task, do NOT fix them.
+Instead, record them so a new ticket can be opened automatically. Write a JSON file at:
+  .symphony/findings.json
+containing an array of objects, each with "title" (string) and "description" (string) fields.
+Example:
+  [{"title": "Null pointer in auth handler", "description": "auth/handler.go:142 can panic when token is nil. Reproduces when..."}]
+Only include genuinely unrelated issues. The orchestrator will create a Linear ticket for each entry.`
+
+// processFindings reads .symphony/findings.json from the workspace, creates a Linear issue
+// for each finding, then removes the file. Errors are logged but do not fail the worker.
+func (o *Orchestrator) processFindings(ctx context.Context, workspacePath string, sourceIssue model.Issue, teamID string) {
+	path := filepath.Join(workspacePath, findingsFilePath)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			o.logger.Warn("findings: failed to read findings file", "path", path, "error", err)
+		}
+		return
+	}
+
+	var findings []model.Finding
+	if err := json.Unmarshal(data, &findings); err != nil {
+		o.logger.Warn("findings: failed to parse findings file", "path", path, "error", err)
+		return
+	}
+
+	for _, f := range findings {
+		if f.Title == "" {
+			continue
+		}
+		desc := fmt.Sprintf("Found while working on %s: %s\n\n%s", sourceIssue.Identifier, sourceIssue.Title, f.Description)
+		identifier, err := o.linear.CreateIssue(ctx, teamID, f.Title, desc)
+		if err != nil {
+			o.logger.Warn("findings: failed to create Linear issue",
+				"finding_title", f.Title,
+				"source_issue", sourceIssue.Identifier,
+				"error", err,
+			)
+		} else {
+			o.logger.Info("findings: created new Linear issue",
+				"new_issue", identifier,
+				"finding_title", f.Title,
+				"source_issue", sourceIssue.Identifier,
+			)
+		}
+	}
+
+	// Remove the findings file so it is not processed again next turn.
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		o.logger.Warn("findings: failed to remove findings file", "path", path, "error", err)
+	}
+}
+
 func (o *Orchestrator) buildTurnPrompt(issue model.Issue, attempt *int, turnNum, maxTurns int) (string, error) {
 	o.mu.Lock()
 	tmpl := o.wfDef.PromptTemplate
 	o.mu.Unlock()
 
 	if turnNum == 1 {
-		return workflow.RenderPrompt(tmpl, issue, attempt)
+		base, err := workflow.RenderPrompt(tmpl, issue, attempt)
+		if err != nil {
+			return "", err
+		}
+		return base + findingsPromptInstructions, nil
 	}
 
 	// Continuation turn - send guidance, not the full original prompt
