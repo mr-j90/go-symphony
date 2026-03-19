@@ -223,6 +223,92 @@ func (c *Client) CreateComment(ctx context.Context, issueID, body string) error 
 	return nil
 }
 
+// FetchTeamID returns the team ID for the given issue.
+func (c *Client) FetchTeamID(ctx context.Context, issueID string) (string, error) {
+	query := `query($issueId: String!) {
+		issue(id: $issueId) {
+			team { id }
+		}
+	}`
+
+	resp, err := c.doQuery(ctx, query, map[string]any{"issueId": issueID})
+	if err != nil {
+		return "", fmt.Errorf("linear_api_request: fetch team id: %w", err)
+	}
+
+	var result struct {
+		Data struct {
+			Issue struct {
+				Team struct {
+					ID string `json:"id"`
+				} `json:"team"`
+			} `json:"issue"`
+		} `json:"data"`
+		Errors []graphqlError `json:"errors"`
+	}
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return "", fmt.Errorf("linear_unknown_payload: %w", err)
+	}
+	if len(result.Errors) > 0 {
+		return "", fmt.Errorf("linear_graphql_errors: %s", result.Errors[0].Message)
+	}
+	if result.Data.Issue.Team.ID == "" {
+		return "", fmt.Errorf("linear_team_not_found: no team found for issue %s", issueID)
+	}
+
+	return result.Data.Issue.Team.ID, nil
+}
+
+// CreateIssue creates a new Linear issue in the given team and returns its identifier (e.g. "ZYX-99").
+func (c *Client) CreateIssue(ctx context.Context, teamID, title, description string) (string, error) {
+	mutation := `mutation($teamId: String!, $title: String!, $description: String) {
+		issueCreate(input: { teamId: $teamId, title: $title, description: $description }) {
+			success
+			issue {
+				id
+				identifier
+			}
+		}
+	}`
+
+	variables := map[string]any{
+		"teamId": teamID,
+		"title":  title,
+	}
+	if description != "" {
+		variables["description"] = description
+	}
+
+	resp, err := c.doQuery(ctx, mutation, variables)
+	if err != nil {
+		return "", fmt.Errorf("linear_api_request: create issue: %w", err)
+	}
+
+	var result struct {
+		Data struct {
+			IssueCreate struct {
+				Success bool `json:"success"`
+				Issue   struct {
+					ID         string `json:"id"`
+					Identifier string `json:"identifier"`
+				} `json:"issue"`
+			} `json:"issueCreate"`
+		} `json:"data"`
+		Errors []graphqlError `json:"errors"`
+	}
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return "", fmt.Errorf("linear_unknown_payload: %w", err)
+	}
+	if len(result.Errors) > 0 {
+		return "", fmt.Errorf("linear_graphql_errors: %s", result.Errors[0].Message)
+	}
+	if !result.Data.IssueCreate.Success {
+		return "", fmt.Errorf("linear_create_issue_failed: issueCreate returned success=false")
+	}
+
+	return result.Data.IssueCreate.Issue.Identifier, nil
+}
+
 // ExecuteGraphQL runs a raw GraphQL query (for the linear_graphql tool extension).
 func (c *Client) ExecuteGraphQL(ctx context.Context, query string, variables map[string]any) (json.RawMessage, error) {
 	return c.doQuery(ctx, query, variables)

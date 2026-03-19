@@ -139,3 +139,11 @@ type RateLimitInfo struct {
 	Remaining int
 	Reset     time.Time
 }
+
+// Finding represents an issue discovered by the agent that is unrelated to the current task.
+// Agents write these to .symphony/findings.json in the workspace; the orchestrator
+// reads them after each turn and opens Linear issues for each one.
+type Finding struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
