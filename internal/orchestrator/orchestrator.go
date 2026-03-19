@@ -642,7 +642,7 @@ func (o *Orchestrator) onWorkerExit(issueID string, entry *model.RunningEntry, e
 		nextAttempt := entry.RetryAttempt + 1
 		delay := o.calculateBackoff(nextAttempt)
 
-		o.scheduleRetry(issueID, entry.Identifier, nextAttempt, err.Error(), delay)
+		o.scheduleRetry(issueID, entry.Identifier, entry.Issue.Title, nextAttempt, err.Error(), delay)
 
 		o.logger.Warn("worker failed",
 			"issue_id", issueID,
@@ -665,7 +665,7 @@ func (o *Orchestrator) calculateBackoff(attempt int) int64 {
 	return delay
 }
 
-func (o *Orchestrator) scheduleRetry(issueID, identifier string, attempt int, errMsg string, delayMS int64) {
+func (o *Orchestrator) scheduleRetry(issueID, identifier, issueTitle string, attempt int, errMsg string, delayMS int64) {
 	// Cancel existing retry timer
 	delete(o.retryAttempts, issueID)
 
@@ -673,6 +673,7 @@ func (o *Orchestrator) scheduleRetry(issueID, identifier string, attempt int, er
 	entry := &model.RetryEntry{
 		IssueID:    issueID,
 		Identifier: identifier,
+		IssueTitle: issueTitle,
 		Attempt:    attempt,
 		DueAtMS:    dueAt,
 		Error:      errMsg,
@@ -701,7 +702,7 @@ func (o *Orchestrator) onRetryTimer(issueID string) {
 	issues, err := o.linear.FetchCandidateIssues(ctx, o.cfg.TrackerActiveStates)
 	if err != nil {
 		o.mu.Lock()
-		o.scheduleRetry(issueID, entry.Identifier, entry.Attempt+1, "retry poll failed", o.calculateBackoff(entry.Attempt+1))
+		o.scheduleRetry(issueID, entry.Identifier, entry.IssueTitle, entry.Attempt+1, "retry poll failed", o.calculateBackoff(entry.Attempt+1))
 		o.mu.Unlock()
 		return
 	}
@@ -738,7 +739,7 @@ func (o *Orchestrator) onRetryTimer(issueID string) {
 
 	if slots <= 0 {
 		o.mu.Lock()
-		o.scheduleRetry(issueID, entry.Identifier, entry.Attempt+1, "no available orchestrator slots", o.calculateBackoff(entry.Attempt+1))
+		o.scheduleRetry(issueID, entry.Identifier, entry.IssueTitle, entry.Attempt+1, "no available orchestrator slots", o.calculateBackoff(entry.Attempt+1))
 		o.mu.Unlock()
 		return
 	}
@@ -885,6 +886,7 @@ func (o *Orchestrator) Snapshot() StateSnapshot {
 		snap.Running = append(snap.Running, RunningSnapshot{
 			IssueID:         entry.IssueID,
 			IssueIdentifier: entry.Identifier,
+			IssueTitle:      entry.Issue.Title,
 			State:           entry.Issue.State,
 			SessionID:       entry.Session.SessionID,
 			TurnCount:       entry.Session.TurnCount,
@@ -904,6 +906,7 @@ func (o *Orchestrator) Snapshot() StateSnapshot {
 		snap.Retrying = append(snap.Retrying, RetrySnapshot{
 			IssueID:         entry.IssueID,
 			IssueIdentifier: entry.Identifier,
+			IssueTitle:      entry.IssueTitle,
 			Attempt:         entry.Attempt,
 			DueAt:           time.UnixMilli(entry.DueAtMS).UTC(),
 			Error:           entry.Error,
@@ -925,6 +928,7 @@ type StateSnapshot struct {
 type RunningSnapshot struct {
 	IssueID         string        `json:"issue_id"`
 	IssueIdentifier string        `json:"issue_identifier"`
+	IssueTitle      string        `json:"issue_title"`
 	State           string        `json:"state"`
 	SessionID       string        `json:"session_id"`
 	TurnCount       int           `json:"turn_count"`
@@ -944,6 +948,7 @@ type TokenSnapshot struct {
 type RetrySnapshot struct {
 	IssueID         string    `json:"issue_id"`
 	IssueIdentifier string    `json:"issue_identifier"`
+	IssueTitle      string    `json:"issue_title"`
 	Attempt         int       `json:"attempt"`
 	DueAt           time.Time `json:"due_at"`
 	Error           string    `json:"error"`
