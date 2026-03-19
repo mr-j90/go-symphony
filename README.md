@@ -1,4 +1,5 @@
 # go-symphony
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/c0a65457-12ab-430e-bb6b-4e18e8087f68" />
 
 A daemon that turns your Linear backlog into autonomous coding sessions. Symphony polls Linear for issues, creates isolated workspaces, and dispatches coding agents (Claude Code or Codex) to work on them — handling concurrency, retries, state transitions, and observability automatically.
 
