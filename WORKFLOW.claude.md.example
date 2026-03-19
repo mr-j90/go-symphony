@@ -85,5 +85,12 @@ This is retry attempt {{ attempt }}. Review your previous work and continue from
 2. Implement the necessary changes
 3. Write tests for your changes
 4. Ensure all tests pass
-5. Create a pull request with a clear description
-6. Move the issue to "Human Review" when complete
+5. Before opening the PR, post a comment on the Linear ticket summarizing what was implemented and any relevant notes. Use the Linear API with `$LINEAR_API_KEY`:
+   ```bash
+   curl -s -X POST https://api.linear.app/graphql \
+     -H "Content-Type: application/json" \
+     -H "Authorization: $LINEAR_API_KEY" \
+     -d '{"query":"mutation($issueId:String!,$body:String!){commentCreate(input:{issueId:$issueId,body:$body}){success}}","variables":{"issueId":"{{ issue.id }}","body":"<your notes here>"}}'
+   ```
+6. Create a pull request with a clear description
+7. Move the issue to "Human Review" when complete
