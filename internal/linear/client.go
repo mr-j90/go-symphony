@@ -186,6 +186,43 @@ func (c *Client) FetchIssuesByStates(ctx context.Context, states []string) ([]mo
 	return allIssues, nil
 }
 
+// CreateComment posts a comment on a Linear issue.
+func (c *Client) CreateComment(ctx context.Context, issueID, body string) error {
+	mutation := `mutation($issueId: String!, $body: String!) {
+		commentCreate(input: { issueId: $issueId, body: $body }) {
+			success
+		}
+	}`
+
+	resp, err := c.doQuery(ctx, mutation, map[string]any{
+		"issueId": issueID,
+		"body":    body,
+	})
+	if err != nil {
+		return fmt.Errorf("linear_api_request: create comment: %w", err)
+	}
+
+	var result struct {
+		Data struct {
+			CommentCreate struct {
+				Success bool `json:"success"`
+			} `json:"commentCreate"`
+		} `json:"data"`
+		Errors []graphqlError `json:"errors"`
+	}
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return fmt.Errorf("linear_unknown_payload: %w", err)
+	}
+	if len(result.Errors) > 0 {
+		return fmt.Errorf("linear_graphql_errors: %s", result.Errors[0].Message)
+	}
+	if !result.Data.CommentCreate.Success {
+		return fmt.Errorf("linear_comment_failed: commentCreate returned success=false")
+	}
+
+	return nil
+}
+
 // ExecuteGraphQL runs a raw GraphQL query (for the linear_graphql tool extension).
 func (c *Client) ExecuteGraphQL(ctx context.Context, query string, variables map[string]any) (json.RawMessage, error) {
 	return c.doQuery(ctx, query, variables)
